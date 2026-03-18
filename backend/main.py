@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File
+from fastapi import FastAPI, APIRouter, HTTPException, BackgroundTasks, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_core.messages import HumanMessage, AIMessage
 
@@ -32,6 +32,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+router = APIRouter(prefix="/api")
+
 # In-memory graph instances keyed by session_id (resume mode only)
 _graphs: dict[str, dict] = {}
 # Drill session data (questions stored for evaluation at end)
@@ -60,12 +62,12 @@ def preload_models():
     logger.info("Vector memory initialized.")
 
 
-@app.get("/")
+@router.get("/")
 def root():
     return {"service": "TechSpar", "version": "0.1.0"}
 
 
-@app.get("/resume/status")
+@router.get("/resume/status")
 def resume_status():
     """Check if a resume file exists."""
     resume_dir = settings.resume_path
@@ -78,7 +80,7 @@ def resume_status():
     return {"has_resume": True, "filename": f.name, "size": f.stat().st_size}
 
 
-@app.post("/resume/upload")
+@router.post("/resume/upload")
 async def upload_resume(file: UploadFile = File(...)):
     """Upload a resume PDF. Replaces any existing resume."""
     if not file.filename.lower().endswith(".pdf"):
@@ -107,13 +109,13 @@ async def upload_resume(file: UploadFile = File(...)):
     return {"ok": True, "filename": file.filename, "size": len(content)}
 
 
-@app.get("/topics")
+@router.get("/topics")
 def get_topics():
     """List available drill topics (with name and icon)."""
     return load_topics()
 
 
-@app.post("/topics")
+@router.post("/topics")
 def create_topic(body: dict):
     """Add a new topic."""
     key = body.get("key", "").strip()
@@ -140,7 +142,7 @@ def create_topic(body: dict):
     return {"ok": True, "key": key}
 
 
-@app.delete("/topics/{key}")
+@router.delete("/topics/{key}")
 def delete_topic(key: str):
     """Remove a topic."""
     topics = load_topics()
@@ -157,20 +159,20 @@ def delete_topic(key: str):
     return {"ok": True}
 
 
-@app.get("/profile")
+@router.get("/profile")
 def get_user_profile():
     """Get the user's accumulated interview profile."""
     return get_profile()
 
 
-@app.get("/profile/topic/{topic}/history")
+@router.get("/profile/topic/{topic}/history")
 def get_topic_history(topic: str):
     """Get session history for a specific topic."""
     sessions = list_sessions_by_topic(topic)
     return sessions
 
 
-@app.post("/profile/topic/{topic}/retrospective")
+@router.post("/profile/topic/{topic}/retrospective")
 async def generate_retrospective(topic: str):
     """Generate a comprehensive retrospective for a topic based on all past sessions."""
     from backend.prompts.interviewer import TOPIC_RETROSPECTIVE_PROMPT
@@ -244,7 +246,7 @@ async def generate_retrospective(topic: str):
     }
 
 
-@app.post("/interview/start")
+@router.post("/interview/start")
 async def start_interview(req: StartInterviewRequest):
     """Start a new interview session."""
     session_id = str(uuid.uuid4())[:8]
@@ -293,7 +295,7 @@ async def start_interview(req: StartInterviewRequest):
         }
 
 
-@app.post("/interview/chat")
+@router.post("/interview/chat")
 async def chat(req: ChatRequest):
     """Send user answer, get next interviewer response (resume mode only)."""
     if req.session_id not in _graphs:
@@ -332,7 +334,7 @@ async def chat(req: ChatRequest):
     }
 
 
-@app.post("/interview/end/{session_id}")
+@router.post("/interview/end/{session_id}")
 async def end_interview(session_id: str, body: EndDrillRequest = None):
     """End interview → evaluate → generate review → update profile."""
 
@@ -507,7 +509,7 @@ async def _update_drill_profile(topic: str, overall: dict, scores: list, total_q
 
 # ── Knowledge management endpoints ──
 
-@app.get("/knowledge/{topic}/core")
+@router.get("/knowledge/{topic}/core")
 async def get_core_knowledge(topic: str):
     """List core knowledge files for a topic."""
     if topic not in TOPIC_MAP:
@@ -522,7 +524,7 @@ async def get_core_knowledge(topic: str):
     return files
 
 
-@app.put("/knowledge/{topic}/core/{filename}")
+@router.put("/knowledge/{topic}/core/{filename}")
 async def update_core_knowledge(topic: str, filename: str, body: dict):
     """Update a core knowledge file."""
     if topic not in TOPIC_MAP:
@@ -539,7 +541,7 @@ async def update_core_knowledge(topic: str, filename: str, body: dict):
     return {"ok": True}
 
 
-@app.post("/knowledge/{topic}/core")
+@router.post("/knowledge/{topic}/core")
 async def create_core_knowledge(topic: str, body: dict):
     """Create a new core knowledge file."""
     if topic not in TOPIC_MAP:
@@ -559,7 +561,7 @@ async def create_core_knowledge(topic: str, body: dict):
     return {"ok": True, "filename": filename}
 
 
-@app.get("/knowledge/{topic}/high_freq")
+@router.get("/knowledge/{topic}/high_freq")
 async def get_high_freq(topic: str):
     """Get high-frequency question bank for a topic."""
     if topic not in TOPIC_MAP:
@@ -571,7 +573,7 @@ async def get_high_freq(topic: str):
     return {"content": filepath.read_text(encoding="utf-8")}
 
 
-@app.put("/knowledge/{topic}/high_freq")
+@router.put("/knowledge/{topic}/high_freq")
 async def update_high_freq(topic: str, body: dict):
     """Update high-frequency question bank for a topic."""
     if topic not in TOPIC_MAP:
@@ -583,7 +585,7 @@ async def update_high_freq(topic: str, body: dict):
     return {"ok": True}
 
 
-@app.get("/interview/review/{session_id}")
+@router.get("/interview/review/{session_id}")
 async def get_review(session_id: str):
     """Get review for a completed session."""
     session = get_session(session_id)
@@ -594,7 +596,10 @@ async def get_review(session_id: str):
     return session
 
 
-@app.get("/interview/history")
+@router.get("/interview/history")
 async def get_history(limit: int = 20):
     """List past interview sessions."""
     return list_sessions(limit)
+
+
+app.include_router(router)
