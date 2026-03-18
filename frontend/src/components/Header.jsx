@@ -79,8 +79,8 @@ export default function Header() {
   return (
     <header style={styles.header}>
       <div style={styles.logo} onClick={() => navigate("/")}>
-        <div style={styles.logoIcon}>M</div>
-        <span style={styles.title}>MockInterview</span>
+        <div style={styles.logoIcon}>T</div>
+        <span style={styles.title}>TechSpar</span>
       </div>
       <nav style={styles.nav}>
         <button

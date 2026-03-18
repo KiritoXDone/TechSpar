@@ -1,5 +1,5 @@
 from langchain_openai import ChatOpenAI
-from llama_index.llms.openai import OpenAI as LlamaOpenAI
+from llama_index.llms.openai_like import OpenAILike
 
 from backend.config import settings
 
@@ -21,11 +21,12 @@ def get_llama_llm():
     """LlamaIndex LLM (singleton)."""
     global _llama_llm_instance
     if _llama_llm_instance is None:
-        _llama_llm_instance = LlamaOpenAI(
+        _llama_llm_instance = OpenAILike(
             model=settings.model,
             api_key=settings.api_key,
             api_base=settings.api_base,
             temperature=settings.temperature,
+            is_chat_model=True,
         )
     return _llama_llm_instance
 

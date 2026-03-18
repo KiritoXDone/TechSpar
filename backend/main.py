@@ -2,7 +2,7 @@
 import uuid
 from datetime import datetime
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_core.messages import HumanMessage, AIMessage
 
@@ -16,14 +16,14 @@ from backend.graphs.topic_drill import (
 )
 from backend.graphs.review import generate_review
 from backend.config import settings
-from backend.indexer import TOPIC_MAP, load_topics, save_topics
+from backend.indexer import TOPIC_MAP, load_topics, save_topics, _index_cache
 from backend.memory import get_profile, update_profile_after_interview, llm_update_profile
 from backend.storage.sessions import (
     create_session, append_message, save_review, save_drill_answers,
     get_session, list_sessions, list_sessions_by_topic,
 )
 
-app = FastAPI(title="MockInterview", version="0.1.0")
+app = FastAPI(title="TechSpar", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -62,7 +62,49 @@ def preload_models():
 
 @app.get("/")
 def root():
-    return {"service": "MockInterview", "version": "0.1.0"}
+    return {"service": "TechSpar", "version": "0.1.0"}
+
+
+@app.get("/resume/status")
+def resume_status():
+    """Check if a resume file exists."""
+    resume_dir = settings.resume_path
+    if not resume_dir.exists():
+        return {"has_resume": False}
+    files = [f for f in resume_dir.iterdir() if f.suffix.lower() == ".pdf"]
+    if not files:
+        return {"has_resume": False}
+    f = files[0]
+    return {"has_resume": True, "filename": f.name, "size": f.stat().st_size}
+
+
+@app.post("/resume/upload")
+async def upload_resume(file: UploadFile = File(...)):
+    """Upload a resume PDF. Replaces any existing resume."""
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(400, "Only PDF files are supported.")
+
+    resume_dir = settings.resume_path
+    resume_dir.mkdir(parents=True, exist_ok=True)
+
+    # Remove old resumes
+    for old in resume_dir.iterdir():
+        if old.is_file():
+            old.unlink()
+
+    # Save new file
+    dest = resume_dir / file.filename
+    content = await file.read()
+    dest.write_bytes(content)
+
+    # Clear index cache so next query rebuilds from new resume
+    _index_cache.pop("resume", None)
+    cache_dir = settings.base_dir / "data" / ".index_cache" / "resume"
+    if cache_dir.exists():
+        import shutil
+        shutil.rmtree(cache_dir)
+
+    return {"ok": True, "filename": file.filename, "size": len(content)}
 
 
 @app.get("/topics")

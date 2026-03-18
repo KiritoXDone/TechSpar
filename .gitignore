@@ -18,3 +18,4 @@ data/interviews.db
 data/.index_cache/
 data/models/
 .DS_Store
+llm.md

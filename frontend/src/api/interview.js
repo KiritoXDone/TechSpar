@@ -21,6 +21,24 @@ export async function deleteTopic(key) {
   return res.json();
 }
 
+// ── Resume ──
+
+export async function getResumeStatus() {
+  const res = await fetch(`${API_BASE}/resume/status`);
+  return res.json();
+}
+
+export async function uploadResume(file) {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${API_BASE}/resume/upload`, {
+    method: "POST",
+    body: form,
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 export async function startInterview(mode, topic = null) {
   const res = await fetch(`${API_BASE}/interview/start`, {
     method: "POST",

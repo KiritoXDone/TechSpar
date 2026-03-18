@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import TopicCard from "../components/TopicCard";
-import { getTopics, startInterview } from "../api/interview";
+import { getTopics, startInterview, getResumeStatus, uploadResume } from "../api/interview";
 
 const styles = {
   page: {
@@ -102,6 +102,59 @@ const styles = {
     padding: 20,
     color: "var(--text-dim)",
   },
+  resumeSection: {
+    width: "100%",
+    maxWidth: 700,
+    marginBottom: 32,
+  },
+  resumeBox: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "16px 20px",
+    background: "var(--bg-card)",
+    border: "1px solid var(--border)",
+    borderRadius: 12,
+  },
+  resumeInfo: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    fontSize: 14,
+    color: "var(--text)",
+  },
+  resumeFileName: {
+    fontWeight: 500,
+  },
+  resumeSize: {
+    fontSize: 12,
+    color: "var(--text-dim)",
+  },
+  uploadBtn: {
+    padding: "8px 16px",
+    borderRadius: 8,
+    background: "rgba(108,92,231,0.12)",
+    color: "var(--accent-light)",
+    fontSize: 13,
+    fontWeight: 500,
+    border: "none",
+    cursor: "pointer",
+    transition: "opacity 0.2s",
+  },
+  uploadLabel: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 8,
+    padding: "28px 20px",
+    background: "var(--bg-card)",
+    border: "2px dashed var(--border)",
+    borderRadius: 12,
+    cursor: "pointer",
+    transition: "border-color 0.2s",
+    fontSize: 14,
+    color: "var(--text-dim)",
+  },
 };
 
 export default function Home() {
@@ -110,10 +163,30 @@ export default function Home() {
   const [topics, setTopics] = useState({});
   const [selectedTopic, setSelectedTopic] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [resumeFile, setResumeFile] = useState(null); // {filename, size} or null
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     getTopics().then(setTopics).catch(() => {});
+    getResumeStatus().then((s) => {
+      if (s.has_resume) setResumeFile({ filename: s.filename, size: s.size });
+    }).catch(() => {});
   }, []);
+
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const data = await uploadResume(file);
+      setResumeFile({ filename: data.filename, size: data.size });
+    } catch (err) {
+      alert("上传失败: " + err.message);
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
 
   const handleStart = async () => {
     if (!mode) return;
@@ -130,14 +203,14 @@ export default function Home() {
     }
   };
 
-  const canStart = mode === "resume" || (mode === "topic_drill" && selectedTopic);
+  const canStart = (mode === "resume" && resumeFile) || (mode === "topic_drill" && selectedTopic);
 
   return (
     <div style={styles.page}>
       <div style={styles.hero}>
-        <h1 style={styles.h1}>AI 模拟面试</h1>
+        <h1 style={styles.h1}>TechSpar</h1>
         <p style={styles.subtitle}>
-          基于 LangGraph + LlamaIndex 的智能面试模拟系统，记录你的回答，面试结束后自动复盘
+          越练越懂你的 AI 面试教练——追踪你的成长轨迹，精准命中薄弱点
         </p>
       </div>
 
@@ -177,6 +250,44 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {mode === "resume" && (
+        <div style={styles.resumeSection}>
+          {resumeFile ? (
+            <div style={styles.resumeBox}>
+              <div style={styles.resumeInfo}>
+                <span>📄</span>
+                <span style={styles.resumeFileName}>{resumeFile.filename}</span>
+                <span style={styles.resumeSize}>
+                  ({(resumeFile.size / 1024).toFixed(0)} KB)
+                </span>
+              </div>
+              <label style={{ ...styles.uploadBtn, opacity: uploading ? 0.4 : 1 }}>
+                {uploading ? "上传中..." : "重新上传"}
+                <input
+                  type="file"
+                  accept=".pdf"
+                  style={{ display: "none" }}
+                  onChange={handleUpload}
+                  disabled={uploading}
+                />
+              </label>
+            </div>
+          ) : (
+            <label style={{ ...styles.uploadLabel, opacity: uploading ? 0.5 : 1 }}>
+              <span style={{ fontSize: 28 }}>📄</span>
+              <span>{uploading ? "正在上传..." : "点击上传简历（PDF）"}</span>
+              <input
+                type="file"
+                accept=".pdf"
+                style={{ display: "none" }}
+                onChange={handleUpload}
+                disabled={uploading}
+              />
+            </label>
+          )}
+        </div>
+      )}
 
       {mode === "topic_drill" && (
         <div style={styles.topicSection}>

@@ -1,6 +1,14 @@
-# TechSpar
+<p align="center">
+  <img src="images/logo.png" alt="TechSpar" width="360" />
+</p>
 
-**An AI interview coach that learns you.**
+<p align="center">
+  <b>An AI interview coach that learns you.</b>
+</p>
+
+<p align="center">
+  <a href="#快速开始">快速开始</a> · <a href="#界面展示">界面展示</a> · <a href="#系统架构">系统架构</a> · <a href="LICENSE">MIT License</a>
+</p>
 
 传统面试工具是无状态的——每次练习都是一张白纸，不了解你的知识盲区，无法追踪你的成长轨迹。
 

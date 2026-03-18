@@ -136,7 +136,7 @@ def list_sessions_by_topic(topic: str, limit: int = 50) -> list[dict]:
 def list_sessions(limit: int = 20) -> list[dict]:
     conn = _get_conn()
     rows = conn.execute(
-        "SELECT session_id, mode, topic, created_at, review IS NOT NULL as has_review FROM sessions WHERE review IS NOT NULL OR transcript != '[]' ORDER BY created_at DESC LIMIT ?",
+        "SELECT session_id, mode, topic, created_at, review IS NOT NULL as has_review FROM sessions WHERE review IS NOT NULL ORDER BY created_at DESC LIMIT ?",
         (limit,),
     ).fetchall()
     conn.close()
