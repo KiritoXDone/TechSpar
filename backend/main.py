@@ -110,6 +110,26 @@ async def upload_resume(file: UploadFile = File(...)):
     return {"ok": True, "filename": file.filename, "size": len(content)}
 
 
+# ── Speech-to-text ──
+
+@router.post("/transcribe")
+async def transcribe(file: UploadFile = File(...)):
+    """Transcribe audio to text using FunASR Paraformer-zh."""
+    audio_bytes = await file.read()
+    if not audio_bytes:
+        raise HTTPException(400, "Empty audio file.")
+
+    try:
+        from backend.transcribe import transcribe_audio
+        suffix = "." + (file.filename or "audio.webm").rsplit(".", 1)[-1]
+        text = transcribe_audio(audio_bytes, suffix=suffix)
+        return {"text": text}
+    except ImportError:
+        raise HTTPException(501, "FunASR not installed. Run: pip install funasr")
+    except Exception as e:
+        raise HTTPException(500, f"Transcription failed: {e}")
+
+
 @router.get("/topics")
 def get_topics():
     """List available drill topics (with name and icon)."""

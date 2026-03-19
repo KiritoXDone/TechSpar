@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import ChatBubble from "../components/ChatBubble";
 import { sendMessage, endInterview } from "../api/interview";
+import useVoiceInput from "../hooks/useVoiceInput";
 
 export default function Interview() {
   const { sessionId } = useParams();
@@ -28,6 +29,16 @@ export default function Interview() {
   const [answers, setAnswers] = useState({});
   const [drillInput, setDrillInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Voice input for drill mode
+  const drillVoice = useVoiceInput({
+    onResult: useCallback((text) => setDrillInput((prev) => prev + text), []),
+  });
+
+  // Voice input for chat mode
+  const chatVoice = useVoiceInput({
+    onResult: useCallback((text) => setInput((prev) => prev + text), []),
+  });
 
   useEffect(() => {
     if (!isDrill && initData.message) {
@@ -218,15 +229,33 @@ export default function Interview() {
 
               {/* Input area */}
               <div className="w-full max-w-[720px] flex flex-col md:flex-row gap-3 py-2">
-                <textarea
-                  ref={textareaRef}
-                  className="flex-1 px-4 py-3.5 rounded-box border border-border bg-input text-text resize-none outline-none min-h-[80px] max-h-[240px] leading-relaxed text-[15px]"
-                  value={drillInput}
-                  onChange={(e) => setDrillInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="输入你的回答... (Enter 提交, Shift+Enter 换行)"
-                  rows={3}
-                />
+                <div className="flex-1 relative">
+                  <textarea
+                    ref={textareaRef}
+                    className="w-full px-4 py-3.5 rounded-box border border-border bg-input text-text resize-none outline-none min-h-[80px] max-h-[240px] leading-relaxed text-[15px]"
+                    value={drillInput}
+                    onChange={(e) => setDrillInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={drillVoice.isListening ? "正在录音，再次点击麦克风停止..." : drillVoice.isTranscribing ? "正在识别语音..." : "输入你的回答... (Enter 提交, Shift+Enter 换行)"}
+                    rows={3}
+                  />
+                  {drillVoice.isSupported && (
+                    <button
+                      className={`absolute right-2 bottom-2 w-9 h-9 rounded-full flex items-center justify-center transition-all
+                        ${drillVoice.isListening ? "bg-red text-white animate-pulse-dot" : drillVoice.isTranscribing ? "bg-orange text-white animate-pulse-dot" : "bg-hover text-dim hover:text-text"}`}
+                      onClick={drillVoice.toggle}
+                      disabled={drillVoice.isTranscribing}
+                      title={drillVoice.isListening ? "停止录音" : drillVoice.isTranscribing ? "正在识别..." : "语音输入"}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                        <line x1="12" y1="19" x2="12" y2="23"/>
+                        <line x1="8" y1="23" x2="16" y2="23"/>
+                      </svg>
+                    </button>
+                  )}
+                </div>
                 <div className="flex md:flex-col gap-2 self-end md:self-end">
                   <button
                     className={`px-7 py-3.5 rounded-box bg-accent text-white font-semibold text-[15px] transition-opacity ${!drillInput.trim() ? "opacity-40" : ""}`}
@@ -297,14 +326,30 @@ export default function Interview() {
         <div className="relative w-full max-w-3xl">
           <textarea
             ref={textareaRef}
-            className="w-full px-4 py-4 md:px-5 rounded-2xl border border-border bg-card text-text resize-none outline-none min-h-[80px] max-h-[240px] leading-normal text-[15px]"
+            className="w-full px-4 py-4 md:px-5 pr-14 rounded-2xl border border-border bg-card text-text resize-none outline-none min-h-[80px] max-h-[240px] leading-normal text-[15px]"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={finished ? "面试已结束，点击右上角查看复盘" : "输入你的回答... (Enter 发送, Shift+Enter 换行)"}
+            placeholder={chatVoice.isListening ? "正在录音，再次点击麦克风停止..." : chatVoice.isTranscribing ? "正在识别语音..." : finished ? "面试已结束，点击右上角查看复盘" : "输入你的回答... (Enter 发送, Shift+Enter 换行)"}
             disabled={finished || sending}
             rows={3}
           />
+          {chatVoice.isSupported && !finished && (
+            <button
+              className={`absolute right-3 bottom-3 w-9 h-9 rounded-full flex items-center justify-center transition-all
+                ${chatVoice.isListening ? "bg-red text-white animate-pulse-dot" : chatVoice.isTranscribing ? "bg-orange text-white animate-pulse-dot" : "bg-hover text-dim hover:text-text"}`}
+              onClick={chatVoice.toggle}
+              disabled={chatVoice.isTranscribing}
+              title={chatVoice.isListening ? "停止录音" : chatVoice.isTranscribing ? "正在识别..." : "语音输入"}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/>
+                <line x1="8" y1="23" x2="16" y2="23"/>
+              </svg>
+            </button>
+          )}
         </div>
       </div>
     </div>
