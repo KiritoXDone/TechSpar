@@ -73,18 +73,20 @@ export default function Graph() {
 
     ctx.shadowBlur = 0;
 
-    // Label for hovered node
     if (hoveredNode === node) {
       ctx.strokeStyle = textColor;
       ctx.lineWidth = 1.5;
       ctx.stroke();
-
-      const label = node.focus_area || node.question.slice(0, 20);
-      ctx.font = "11px DM Sans, sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillStyle = textColor;
-      ctx.fillText(label, node.x, node.y - r - 6);
     }
+
+    // Label
+    const label = node.focus_area || node.question.slice(0, 20);
+    ctx.font = `${hoveredNode === node ? 12 : 10}px DM Sans, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.fillStyle = textColor;
+    ctx.globalAlpha = hoveredNode === node ? 1 : 0.7;
+    ctx.fillText(label, node.x, node.y - r - 5);
+    ctx.globalAlpha = 1;
   }, [hoveredNode]);
 
   const paintLink = useCallback((link, ctx) => {
