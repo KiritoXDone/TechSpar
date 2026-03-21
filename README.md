@@ -54,11 +54,11 @@ Try TechSpar online: **[https://aari.top/](https://aari.top/)**
 </p>
 
 <p align="center">
-  <img src="images/profile-analysis.png" alt="Profile" width="800" />
+  <img src="images/2.png" alt="Profile" width="800" />
 </p>
 
 <p align="center">
-  <img src="images/1.png" alt="Profile" width="800" />
+  <img src="images/3.png" alt="Profile" width="800" />
 </p>
 
 
