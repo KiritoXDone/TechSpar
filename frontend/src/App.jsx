@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
-import Header from "./components/Header";
+import Sidebar from "./components/Sidebar";
 import ErrorBoundary from "./components/ErrorBoundary";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
@@ -25,7 +25,12 @@ function ProtectedRoute({ children }) {
 function PublicHome() {
   const { token, loading } = useAuth();
   if (loading) return null;
-  if (token) return <><Header /><Home /></>;
+  if (token)
+    return (
+      <AppShell>
+        <Home />
+      </AppShell>
+    );
   return <Landing />;
 }
 
@@ -34,6 +39,15 @@ function AuthPage() {
   if (loading) return null;
   if (token) return <Navigate to="/" replace />;
   return <Login />;
+}
+
+function AppShell({ children }) {
+  return (
+    <div className="flex flex-col md:flex-row h-screen">
+      <Sidebar />
+      <main className="flex-1 overflow-y-auto flex flex-col">{children}</main>
+    </div>
+  );
 }
 
 function AppRoutes() {
@@ -45,18 +59,19 @@ function AppRoutes() {
         path="/*"
         element={
           <ProtectedRoute>
-            <Header />
-            <Routes>
-              <Route path="/interview/:sessionId" element={<Interview />} />
-              <Route path="/review/:sessionId" element={<Review />} />
-              <Route path="/history" element={<History />} />
-              <Route path="/profile" element={<Profile />} />
-              <Route path="/profile/topic/:topic" element={<TopicDetail />} />
-              <Route path="/knowledge" element={<Knowledge />} />
-              <Route path="/graph" element={<Graph />} />
-              <Route path="/recording" element={<RecordingAnalysis />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <AppShell>
+              <Routes>
+                <Route path="/interview/:sessionId" element={<Interview />} />
+                <Route path="/review/:sessionId" element={<Review />} />
+                <Route path="/history" element={<History />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/profile/topic/:topic" element={<TopicDetail />} />
+                <Route path="/knowledge" element={<Knowledge />} />
+                <Route path="/graph" element={<Graph />} />
+                <Route path="/recording" element={<RecordingAnalysis />} />
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </AppShell>
           </ProtectedRoute>
         }
       />

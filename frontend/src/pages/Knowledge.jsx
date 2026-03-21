@@ -162,7 +162,7 @@ export default function Knowledge() {
   };
 
   return (
-    <div className="flex flex-1 overflow-hidden h-[calc(100vh-65px)]">
+    <div className="flex flex-1 overflow-hidden h-full">
       {/* Mobile sidebar toggle */}
       <button
         className="fixed bottom-4 right-4 z-40 md:hidden w-12 h-12 rounded-full bg-accent text-white text-xl flex items-center justify-center shadow-lg"

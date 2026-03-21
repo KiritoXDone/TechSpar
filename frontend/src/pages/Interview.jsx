@@ -154,7 +154,7 @@ export default function Interview() {
   // ── Drill card mode ──
   if (isDrill) {
     return (
-      <div className="flex-1 flex flex-col h-[calc(100vh-65px)]">
+      <div className="flex-1 flex flex-col h-full">
         {/* Top bar */}
         <div className="flex items-center justify-between px-4 py-3 md:px-6 border-b border-border bg-card">
           <div className="flex items-center gap-2 md:gap-3 flex-wrap">
@@ -297,7 +297,7 @@ export default function Interview() {
 
   // ── Chat mode (resume interview) ──
   return (
-    <div className="flex-1 flex flex-col h-[calc(100vh-65px)]">
+    <div className="flex-1 flex flex-col h-full">
       <div className="flex items-center justify-between px-4 py-3 md:px-6 border-b border-border bg-card">
         <div className="flex items-center gap-2 md:gap-3 flex-wrap">
           <span className={`px-2.5 py-1 rounded-md text-xs font-medium ${modeBadge.cls}`}>{modeBadge.text}</span>
