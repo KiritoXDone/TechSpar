@@ -52,7 +52,7 @@ def _extract_questions(conn: sqlite3.Connection, topic: str, user_id: str) -> li
         (topic, user_id),
     ).fetchall()
 
-    # question_text → latest record (dedup by keeping last occurrence)
+    # question_text → aggregated record, latest occurrence wins for current display fields
     seen: dict[str, dict] = {}
     for row in rows:
         questions = json.loads(row["questions"] or "[]")
@@ -70,14 +70,33 @@ def _extract_questions(conn: sqlite3.Connection, topic: str, user_id: str) -> li
             if not isinstance(score_val, (int, float)):
                 continue
 
+            existing = seen.get(text)
+            if existing:
+                existing["attempts"] += 1
+                existing["score_sum"] += score_val
+                existing["best_score"] = max(existing["best_score"], score_val)
+                existing["score"] = score_val
+                existing["focus_area"] = q.get("focus_area", "") or existing["focus_area"]
+                existing["difficulty"] = q.get("difficulty", 3)
+                existing["date"] = row["created_at"][:10] if row["created_at"] else ""
+                existing["session_id"] = row["session_id"]
+                continue
+
             seen[text] = {
                 "question": text,
                 "score": score_val,
+                "score_sum": score_val,
+                "best_score": score_val,
+                "attempts": 1,
                 "focus_area": q.get("focus_area", ""),
                 "difficulty": q.get("difficulty", 3),
                 "date": row["created_at"][:10] if row["created_at"] else "",
                 "session_id": row["session_id"],
             }
+
+    for item in seen.values():
+        item["avg_score"] = round(item["score_sum"] / item["attempts"], 1)
+        item.pop("score_sum", None)
 
     return list(seen.values())
 
@@ -160,9 +179,13 @@ def build_graph(topic: str, user_id: str) -> dict:
             "id": i,
             "question": q["question"],
             "score": q["score"],
+            "avg_score": q.get("avg_score", q["score"]),
+            "best_score": q.get("best_score", q["score"]),
+            "attempts": q.get("attempts", 1),
             "focus_area": q["focus_area"],
             "difficulty": q["difficulty"],
             "date": q["date"],
+            "session_id": q.get("session_id"),
         })
 
     # Compute pairwise similarity → links
