@@ -15,6 +15,7 @@ env:
   REGISTRY: ghcr.io
   BACKEND_IMAGE: ghcr.io/${{ github.repository_owner }}/techspar-backend
   FRONTEND_IMAGE: ghcr.io/${{ github.repository_owner }}/techspar-frontend
+  COMBINED_IMAGE: ghcr.io/${{ github.repository_owner }}/techspar
 
 jobs:
   build-and-push:
@@ -73,5 +74,26 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta-frontend.outputs.tags }}
           labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Extract metadata for combined image
+        id: meta-combined
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.COMBINED_IMAGE }}
+          tags: |
+            type=ref,event=branch
+            type=sha,format=short
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push combined image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta-combined.outputs.tags }}
+          labels: ${{ steps.meta-combined.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
