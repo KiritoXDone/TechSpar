@@ -437,7 +437,7 @@ def _deterministic_update(profile: dict, new_weak: list, new_strong: list,
 
 
 def _update_mastery(profile: dict, topic: str | None, mastery_data: dict, now: str,
-                    min_weight: float = 0.15):
+                    min_weight: float = 0.15, user_id: str | None = None):
     """Update topic mastery (0-100 scale). Weight decreases with session count."""
     if not mastery_data:
         return
@@ -448,6 +448,13 @@ def _update_mastery(profile: dict, topic: str | None, mastery_data: dict, now: s
         entries = {topic: mastery_data}
     else:
         entries = mastery_data
+
+    # Only allow canonical topics from topics.json
+    if user_id:
+        from backend.indexer import load_topics
+        canonical = set(load_topics(user_id).keys())
+        if canonical:
+            entries = {t: d for t, d in entries.items() if t in canonical}
 
     for t, data in entries.items():
         if not isinstance(data, dict):
@@ -633,7 +640,7 @@ async def llm_update_profile(
             _deterministic_update(profile, new_weak_points, new_strong_points, topic, now, user_id)
 
     # ── Deterministic updates for mastery / communication / thinking / stats ──
-    _update_mastery(profile, topic, topic_mastery, now)
+    _update_mastery(profile, topic, topic_mastery, now, user_id=user_id)
     _update_communication(profile, communication)
     _update_thinking_patterns(profile, thinking_patterns)
     _update_stats(profile, mode, topic, avg_score, now, answer_count, dimension_scores)

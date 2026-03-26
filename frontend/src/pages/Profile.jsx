@@ -11,7 +11,7 @@ import {
   TrendingUp,
   TriangleAlert,
 } from "lucide-react";
-import { getProfile } from "../api/interview";
+import { getProfile, getTopics } from "../api/interview";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -539,14 +539,21 @@ function buildPriorityWeaknesses(weakPoints, masteryMap) {
     });
 }
 
-function getRealTopicSet(profile, history) {
-  const realTopics = new Set(Object.keys(profile.topic_mastery || {}));
+function getRealTopicSet(profile, history, canonicalTopics) {
+  const candidates = new Set(Object.keys(profile.topic_mastery || {}));
 
   (history || []).forEach((entry) => {
-    if (entry?.topic) realTopics.add(entry.topic);
+    if (entry?.topic) candidates.add(entry.topic);
   });
 
-  return realTopics;
+  // Only keep topics that exist in the canonical topics.json list
+  if (canonicalTopics && canonicalTopics.size > 0) {
+    for (const t of candidates) {
+      if (!canonicalTopics.has(t)) candidates.delete(t);
+    }
+  }
+
+  return candidates;
 }
 
 function buildDomainInsights(profile, realTopics) {
@@ -694,13 +701,19 @@ function getLatestEntry(history) {
 
 export default function Profile() {
   const [profile, setProfile] = useState(null);
+  const [canonicalTopics, setCanonicalTopics] = useState(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
-    getProfile()
-      .then(setProfile)
-      .catch(() => setProfile(null))
+    Promise.all([
+      getProfile().catch(() => null),
+      getTopics().catch(() => ({})),
+    ])
+      .then(([p, t]) => {
+        setProfile(p);
+        setCanonicalTopics(new Set(Object.keys(t || {})));
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -764,7 +777,7 @@ export default function Profile() {
   const communicationHabits = profile.communication?.habits || [];
   const communicationSuggestions = profile.communication?.suggestions || [];
   const masteryMap = profile.topic_mastery || {};
-  const realTopicSet = getRealTopicSet(profile, scoreHistory);
+  const realTopicSet = getRealTopicSet(profile, scoreHistory, canonicalTopics);
   const priorityWeaknesses = buildPriorityWeaknesses(weakActive, masteryMap);
   const domains = buildDomainInsights(profile, realTopicSet);
   const focusDomains = domains.filter((item) => item.zone === "focus");
