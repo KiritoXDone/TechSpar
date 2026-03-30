@@ -56,6 +56,8 @@ class TopicDrillState(TypedDict, total=False):
 class StartInterviewRequest(BaseModel):
     mode: InterviewMode
     topic: str | None = None
+    num_questions: int | None = None
+    divergence: int | None = None
 
 
 class JobPrepPreviewRequest(BaseModel):
@@ -146,3 +148,25 @@ class CopilotPrepRequest(BaseModel):
     jd_text: str
     company: str | None = None
     position: str | None = None
+
+
+# ── Settings Models ──
+
+class UserSettings(BaseModel):
+    """Per-user training preferences."""
+    num_questions: int = Field(default=10, ge=5, le=20)
+    divergence: int = Field(default=3, ge=1, le=5)
+
+
+class LLMSettings(BaseModel):
+    """Global LLM provider configuration."""
+    api_base: str = ""
+    api_key: str = ""
+    model: str = ""
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+
+
+class SettingsResponse(BaseModel):
+    """Combined response for GET/PUT /settings."""
+    llm: LLMSettings
+    training: UserSettings

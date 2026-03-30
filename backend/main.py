@@ -16,6 +16,7 @@ from backend.models import (
     JobPrepPreviewRequest, JobPrepStartRequest,
     RecordingAnalyzeRequest, RegisterRequest, LoginRequest,
     InterviewMode, InterviewPhase,
+    UserSettings, LLMSettings, SettingsResponse,
 )
 from backend.graphs.job_prep import (
     generate_job_prep_preview,
@@ -60,6 +61,23 @@ _drill_sessions: dict[str, dict] = {}
 _job_prep_sessions: dict[str, dict] = {}
 # Review generation status: "pending" | "done" | "error"
 _task_status: dict[str, dict] = {}  # {task_id: {"status", "type", "result"}}
+
+
+def _load_user_settings(user_id: str) -> UserSettings:
+    path = settings.user_settings_path(user_id)
+    if path.exists():
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return UserSettings(**data)
+    return UserSettings()
+
+
+def _save_user_settings(user_settings: UserSettings, user_id: str):
+    path = settings.user_settings_path(user_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(user_settings.model_dump(), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
 
 @app.on_event("startup")
@@ -515,6 +533,37 @@ async def generate_retrospective(topic: str, background_tasks: BackgroundTasks,
     return {"task_id": task_id, "status": "pending"}
 
 
+# ── Settings ──
+
+@router.get("/settings")
+def get_user_settings(user_id: str = Depends(get_current_user)):
+    """Get combined LLM (global) and training (per-user) settings."""
+    llm = LLMSettings(
+        api_base=settings.api_base,
+        api_key=settings.api_key,
+        model=settings.model,
+        temperature=settings.temperature,
+    )
+    training = _load_user_settings(user_id)
+    return SettingsResponse(llm=llm, training=training)
+
+
+@router.put("/settings")
+def put_user_settings(payload: SettingsResponse, user_id: str = Depends(get_current_user)):
+    """Update LLM (global, hot-reload) and training (per-user) settings."""
+    from backend.llm_provider import _reset_llama_singleton
+
+    llm = payload.llm
+    settings.api_base = llm.api_base
+    settings.api_key = llm.api_key
+    settings.model = llm.model
+    settings.temperature = llm.temperature
+    _reset_llama_singleton()
+
+    _save_user_settings(payload.training, user_id)
+    return {"ok": True}
+
+
 # ── Interview ──
 
 @router.post("/job-prep/preview")
@@ -608,13 +657,21 @@ def start_interview(req: StartInterviewRequest, user_id: str = Depends(get_curre
     session_id = str(uuid.uuid4())[:8]
 
     if req.mode == InterviewMode.TOPIC_DRILL:
-        # ── Drill mode: generate 10 questions upfront ──
+        # ── Drill mode: generate questions upfront ──
         topics = load_topics(user_id)
         if not req.topic or req.topic not in topics:
             raise HTTPException(400, f"Invalid topic. Available: {list(topics.keys())}")
 
+        user_prefs = _load_user_settings(user_id)
+        num_questions = req.num_questions or user_prefs.num_questions
+        divergence = req.divergence or user_prefs.divergence
+
         try:
-            questions = generate_drill_questions(req.topic, user_id)
+            questions = generate_drill_questions(
+                req.topic, user_id,
+                num_questions=num_questions,
+                divergence=divergence,
+            )
         except RuntimeError as e:
             raise HTTPException(500, str(e))
         create_session(session_id, req.mode.value, req.topic, questions=questions, user_id=user_id)

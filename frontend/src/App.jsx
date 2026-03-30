@@ -17,6 +17,7 @@ import Graph from "./pages/Graph";
 import RecordingAnalysis from "./pages/RecordingAnalysis";
 import JobPrep from "./pages/JobPrep";
 import Copilot from "./pages/Copilot";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 function ProtectedRoute({ children }) {
@@ -77,6 +78,7 @@ function AppRoutes() {
                 <Route path="/recording" element={<RecordingAnalysis />} />
                 <Route path="/job-prep" element={<JobPrep />} />
                 <Route path="/copilot" element={<Copilot />} />
+                <Route path="/settings" element={<Settings />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </AppShell>

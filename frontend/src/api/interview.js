@@ -73,11 +73,14 @@ export async function uploadResume(file) {
   return res.json();
 }
 
-export async function startInterview(mode, topic = null) {
+export async function startInterview(mode, topic = null, { numQuestions, divergence } = {}) {
+  const body = { mode, topic };
+  if (numQuestions != null) body.num_questions = numQuestions;
+  if (divergence != null) body.divergence = divergence;
   const res = await authFetch(`${API_BASE}/interview/start`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ mode, topic }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
@@ -313,6 +316,24 @@ export async function updateHighFreq(topic, content) {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ content }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+// ── Settings ──
+
+export async function getSettings() {
+  const res = await authFetch(`${API_BASE}/settings`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function updateSettings(payload) {
+  const res = await authFetch(`${API_BASE}/settings`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error(await res.text());
   return res.json();

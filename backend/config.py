@@ -84,6 +84,9 @@ class Settings(BaseSettings):
     def user_index_cache_path(self, user_id: str) -> Path:
         return self.user_data_dir(user_id) / ".index_cache"
 
+    def user_settings_path(self, user_id: str) -> Path:
+        return self.user_data_dir(user_id) / "settings.json"
+
     def embedding_backend_mode(self) -> str:
         if self.embedding_backend:
             backend = self.embedding_backend.strip().lower()

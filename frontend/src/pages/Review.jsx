@@ -1,8 +1,9 @@
 import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
-import { BookOpen, BriefcaseBusiness, Sparkles } from "lucide-react";
-import { getReview, getReferenceAnswer } from "../api/interview";
+import { BookOpen, BriefcaseBusiness, Sparkles, RotateCcw } from "lucide-react";
+import { getReview, getReferenceAnswer, startInterview, startJobPrep } from "../api/interview";
+import { useTaskStatus } from "../contexts/TaskStatusContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -515,6 +516,33 @@ export default function Review() {
   const [meta, setMeta] = useState(stateData.meta || {});
   const [showTranscript, setShowTranscript] = useState(false);
   const [loading, setLoading] = useState(!review && !scores);
+  const [restarting, setRestarting] = useState(false);
+  const { setCreatingSessionMode } = useTaskStatus();
+
+  const handleRestart = async () => {
+    const currentMode = mode || stateData.mode;
+    if (!currentMode || currentMode === "recording") return;
+    setRestarting(true);
+    try {
+      let data;
+      if (currentMode === "jd_prep") {
+        const m = meta || stateData.meta || {};
+        data = await startJobPrep({
+          jd_text: m.jd_text,
+          company: m.company,
+          position: m.position,
+          use_resume: m.use_resume,
+        });
+      } else {
+        data = await startInterview(currentMode, topic || stateData.topic);
+      }
+      navigate(`/interview/${data.session_id}`, { state: { ...data, mode: currentMode, topic: topic || stateData.topic, meta: meta || stateData.meta } });
+    } catch (err) {
+      alert("启动失败: " + err.message);
+    } finally {
+      setRestarting(false);
+    }
+  };
 
   useEffect(() => {
     if (!review && !scores) {
@@ -626,9 +654,17 @@ export default function Review() {
         )}
       </div>
 
-      <Button variant="outline" className="mt-6" onClick={() => navigate("/")}>
-        返回首页
-      </Button>
+      <div className="flex items-center gap-3 mt-6">
+        {currentMode && currentMode !== "recording" && (
+          <Button variant="gradient" onClick={handleRestart} disabled={restarting}>
+            <RotateCcw size={15} className={restarting ? "animate-spin" : ""} />
+            {restarting ? "正在生成题目..." : "再次练习"}
+          </Button>
+        )}
+        <Button variant="outline" onClick={() => navigate("/")}>
+          返回首页
+        </Button>
+      </div>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   Home, User, BookOpen, GitFork, Clock, Mic, BriefcaseBusiness, Brain,
+  Settings as SettingsIcon,
   Sun, Moon, LogOut, Menu, X, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
@@ -25,6 +26,7 @@ const NAV_ITEMS = [
   { path: "/job-prep", label: "JD 备面", icon: BriefcaseBusiness },
   { path: "/recording", label: "录音复盘", icon: Mic },
   { path: "/copilot", label: "面试 Copilot", icon: Brain },
+  { path: "/settings", label: "设置", icon: SettingsIcon },
 ];
 
 export default function Sidebar() {

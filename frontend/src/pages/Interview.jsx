@@ -16,7 +16,7 @@ export default function Interview() {
   const { sessionId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { startTask } = useTaskStatus();
+  const { tasks, startTask } = useTaskStatus();
   const chatEndRef = useRef(null);
   const textareaRef = useRef(null);
 
@@ -245,15 +245,30 @@ export default function Interview() {
                   <div className="text-[15px] text-dim mb-6 leading-relaxed">
                     共 {totalQ} 题，已回答 {answeredCount} 题，跳过 {totalQ - answeredCount} 题
                   </div>
-                  <Button
-                    variant="gradient"
-                    size="lg"
-                    className="px-10"
-                    onClick={submitted ? () => navigate(`/review/${sessionId}`) : handleEndBatch}
-                    disabled={submitting}
-                  >
-                    {submitting ? "提交中..." : submitted ? "查看复盘" : "提交评估"}
-                  </Button>
+                  {(() => {
+                    const task = tasks.find((t) => t.id === sessionId);
+                    const taskDone = task?.status === "done";
+                    const taskError = task?.status === "error";
+                    return (
+                      <>
+                        <Button
+                          variant="gradient"
+                          size="lg"
+                          className="px-10"
+                          onClick={submitted && taskDone ? () => navigate(`/review/${sessionId}`) : !submitted ? handleEndBatch : undefined}
+                          disabled={submitting || (submitted && !taskDone)}
+                        >
+                          {submitting ? "提交中..." : !submitted ? "提交评估" : taskDone ? "查看复盘" : taskError ? "生成失败" : "复盘生成中..."}
+                        </Button>
+                        {submitted && !taskDone && !taskError && (
+                          <div className="flex items-center gap-2 mt-3 text-[13px] text-dim">
+                            <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse-dot" />
+                            AI 正在生成复盘报告，请稍候
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </CardContent>
               </Card>
               <div className="flex flex-col gap-1.5">
@@ -367,14 +382,20 @@ export default function Interview() {
             </span>
           )}
         </div>
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={finished ? () => navigate(`/review/${sessionId}`) : handleEndResume}
-          disabled={reviewing}
-        >
-          {reviewing ? "生成复盘中..." : finished ? "查看复盘" : "结束面试"}
-        </Button>
+        {(() => {
+          const task = tasks.find((t) => t.id === sessionId);
+          const taskDone = task?.status === "done";
+          return (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={finished && taskDone ? () => navigate(`/review/${sessionId}`) : !finished ? handleEndResume : undefined}
+              disabled={reviewing || (finished && !taskDone)}
+            >
+              {reviewing ? "生成复盘中..." : !finished ? "结束面试" : taskDone ? "查看复盘" : "复盘生成中..."}
+            </Button>
+          );
+        })()}
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-6 md:px-6 md:py-8 flex flex-col gap-7 max-w-3xl w-full mx-auto">

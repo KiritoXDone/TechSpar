@@ -85,3 +85,9 @@ def get_embedding():
                     "when EMBEDDING_BACKEND=local"
                 )
     return _embedding_instance
+
+
+def _reset_llama_singleton():
+    """Reset LlamaIndex LLM singleton so next call picks up new settings."""
+    global _llama_llm_instance
+    _llama_llm_instance = None

@@ -54,8 +54,17 @@ def _load_high_freq(topic: str, user_id: str) -> str:
     return ""
 
 
-def generate_drill_questions(topic: str, user_id: str) -> list[dict]:
-    """Generate 10 personalized questions for a topic. 1 LLM call."""
+_DIVERGENCE_TO_WEAK_RATIO = {1: 0.8, 2: 0.6, 3: 0.3, 4: 0.15, 5: 0.0}
+
+
+def generate_drill_questions(
+    topic: str,
+    user_id: str,
+    *,
+    num_questions: int = 10,
+    divergence: int = 3,
+) -> list[dict]:
+    """Generate personalized questions for a topic. 1 LLM call."""
     from backend.spaced_repetition import get_due_reviews, init_sr_for_existing_points
 
     # Ensure existing weak points have SR state
@@ -133,6 +142,9 @@ def generate_drill_questions(topic: str, user_id: str) -> list[dict]:
             "- 20% 概念题（考边界 case 和底层原理），80% 场景设计 + 系统权衡题"
         )
 
+    weak_ratio = _DIVERGENCE_TO_WEAK_RATIO.get(divergence, 0.3)
+    weak_count = round(num_questions * weak_ratio)
+
     prompt = DRILL_QUESTION_GEN_PROMPT.format(
         topic_name=topic_name,
         knowledge_context=knowledge_ctx,
@@ -145,6 +157,8 @@ def generate_drill_questions(topic: str, user_id: str) -> list[dict]:
         question_strategy=question_strategy,
         diff_min=diff_min,
         diff_max=diff_max,
+        num_questions=num_questions,
+        weak_count=weak_count,
     )
 
     llm = get_langchain_llm()
@@ -161,7 +175,7 @@ def generate_drill_questions(topic: str, user_id: str) -> list[dict]:
         for i, q in enumerate(questions):
             if "id" not in q:
                 q["id"] = i + 1
-        return questions[:10]
+        return questions[:num_questions]
     except (json.JSONDecodeError, ValueError, IndexError) as e:
         import logging
         logger = logging.getLogger("uvicorn")
