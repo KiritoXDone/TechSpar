@@ -46,6 +46,14 @@ RECORDING_STRUCTURE_PROMPT = """你是面试记录分析专家。以下是一段
 
 RECORDING_DUAL_EVAL_PROMPT = """你是资深技术面试官，正在评估候选人在一场真实面试中的表现。
 
+## 候选人画像
+{profile_summary}
+
+请在评估时特别注意：
+- 候选人的已知薄弱点在本次面试中是否有改善或继续暴露
+- 是否出现了画像中未记录的新薄弱点
+- 与历史表现相比，整体是进步还是退步
+
 ## 候选人的回答
 {qa_pairs}
 
@@ -79,6 +87,11 @@ RECORDING_DUAL_EVAL_PROMPT = """你是资深技术面试官，正在评估候选
         "thinking_patterns": {{
             "new_strengths": ["思维优势"],
             "new_gaps": ["思维短板"]
+        }},
+        "longitudinal": {{
+            "improved_points": ["相比画像记录有改善的点"],
+            "persisting_points": ["画像中已有且本次仍暴露的薄弱点"],
+            "new_concerns": ["本次新发现的、画像中未记录的问题"]
         }}
     }}
 }}
@@ -93,6 +106,13 @@ RECORDING_DUAL_EVAL_PROMPT = """你是资深技术面试官，正在评估候选
 # ── 单人模式：整体技术评估 ──
 
 RECORDING_SOLO_EVAL_PROMPT = """你是资深技术面试官，正在评估一段候选人的技术表达录音。
+
+## 候选人画像
+{profile_summary}
+
+请在评估时特别注意：
+- 候选人的已知薄弱点在本次表达中是否有改善或继续暴露
+- 与历史表现相比，理解深度是否有进步
 
 ## 候选人的技术表达
 {transcript}
@@ -137,6 +157,11 @@ RECORDING_SOLO_EVAL_PROMPT = """你是资深技术面试官，正在评估一段
         "thinking_patterns": {{
             "new_strengths": ["思维优势"],
             "new_gaps": ["思维短板"]
+        }},
+        "longitudinal": {{
+            "improved_points": ["相比画像记录有改善的点"],
+            "persisting_points": ["画像中已有且本次仍暴露的薄弱点"],
+            "new_concerns": ["本次新发现的、画像中未记录的问题"]
         }}
     }}
 }}

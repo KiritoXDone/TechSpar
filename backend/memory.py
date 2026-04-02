@@ -190,7 +190,7 @@ def get_topic_context_for_drill(topic: str, user_id: str) -> dict:
     # Weak points for this topic
     topic_weak = [
         w["point"] for w in profile.get("weak_points", [])
-        if w.get("topic") == topic and not w.get("improved")
+        if w.get("topic") == topic and not w.get("improved") and not w.get("archived")
     ]
 
     # Recent questions from score_history for this topic
@@ -256,12 +256,18 @@ def update_profile_realtime(
         from backend.vector_memory import find_similar_weak_point
         match_idx = find_similar_weak_point(weak_point, profile.get("weak_points", []), user_id=user_id)
         if match_idx is not None:
-            profile["weak_points"][match_idx]["times_seen"] = profile["weak_points"][match_idx].get("times_seen", 1) + 1
-            profile["weak_points"][match_idx]["last_seen"] = now
+            matched = profile["weak_points"][match_idx]
+            matched["times_seen"] = matched.get("times_seen", 1) + 1
+            matched["last_seen"] = now
+            if matched.get("archived"):
+                matched["archived"] = False
+                matched.pop("archived_at", None)
+                matched.setdefault("history", []).append({"date": now, "event": "unarchived"})
         else:
             profile.setdefault("weak_points", []).append({
                 "point": weak_point,
                 "topic": topic or "",
+                "source": "observed",
                 "first_seen": now,
                 "last_seen": now,
                 "times_seen": 1,
@@ -281,10 +287,14 @@ def get_profile_summary(user_id: str) -> str:
 
     parts = []
     if profile.get("weak_points"):
-        active_weak = [w for w in profile["weak_points"] if not w.get("improved")]
+        active_weak = [w for w in profile["weak_points"] if not w.get("improved") and not w.get("archived")]
         if active_weak:
-            points = ", ".join(w["point"] for w in active_weak[:8])
-            parts.append(f"已知薄弱点: {points}")
+            observed = [w["point"] for w in active_weak if w.get("source", "observed") == "observed"][:6]
+            predicted = [w["point"] for w in active_weak if w.get("source") == "predicted"][:4]
+            if observed:
+                parts.append(f"已知薄弱点（训练中暴露）: {', '.join(observed)}")
+            if predicted:
+                parts.append(f"潜在薄弱点（JD分析预测）: {', '.join(predicted)}")
 
     if profile.get("strong_points"):
         points = ", ".join(s["point"] for s in profile["strong_points"][:5])
@@ -368,6 +378,7 @@ def _apply_memory_ops(profile: dict, ops: dict, topic: str | None, now: str):
             weak_points.append({
                 "point": op["point"],
                 "topic": op.get("topic", topic or ""),
+                "source": op.get("source", "observed"),
                 "first_seen": now, "last_seen": now,
                 "times_seen": 1, "improved": False,
             })
@@ -381,6 +392,10 @@ def _apply_memory_ops(profile: dict, ops: dict, topic: str | None, now: str):
                     wp["point"] = op["new_point"]
                 wp["times_seen"] = wp.get("times_seen", 1) + 1
                 wp["last_seen"] = now
+                if wp.get("archived"):
+                    wp["archived"] = False
+                    wp.pop("archived_at", None)
+                    wp.setdefault("history", []).append({"date": now, "event": "unarchived"})
 
     for imp in ops.get("improvements", []):
         idx = imp.get("weak_index")
@@ -410,12 +425,18 @@ def _deterministic_update(profile: dict, new_weak: list, new_strong: list,
         point = wp.get("point", wp) if isinstance(wp, dict) else str(wp)
         match_idx = find_similar_weak_point(point, profile.get("weak_points", []), user_id=user_id)
         if match_idx is not None:
-            profile["weak_points"][match_idx]["times_seen"] = profile["weak_points"][match_idx].get("times_seen", 1) + 1
-            profile["weak_points"][match_idx]["last_seen"] = now
+            matched = profile["weak_points"][match_idx]
+            matched["times_seen"] = matched.get("times_seen", 1) + 1
+            matched["last_seen"] = now
+            if matched.get("archived"):
+                matched["archived"] = False
+                matched.pop("archived_at", None)
+                matched.setdefault("history", []).append({"date": now, "event": "unarchived"})
         else:
             profile.setdefault("weak_points", []).append({
                 "point": point,
                 "topic": wp.get("topic", topic) if isinstance(wp, dict) else (topic or ""),
+                "source": wp.get("source", "observed") if isinstance(wp, dict) else "observed",
                 "first_seen": now, "last_seen": now,
                 "times_seen": 1, "improved": False,
             })
@@ -423,7 +444,7 @@ def _deterministic_update(profile: dict, new_weak: list, new_strong: list,
     for sp in new_strong:
         sp_text = sp.get("point", sp) if isinstance(sp, dict) else str(sp)
         for w in profile.get("weak_points", []):
-            if w.get("topic") == (sp.get("topic") if isinstance(sp, dict) else topic) and not w.get("improved"):
+            if w.get("topic") == (sp.get("topic") if isinstance(sp, dict) else topic) and not w.get("improved") and not w.get("archived"):
                 w["improved"] = True
                 w["improved_at"] = now
                 break
@@ -529,6 +550,37 @@ def _update_thinking_patterns(profile: dict, patterns: dict):
         _append_if_novel(tp["gaps"], g)
 
 
+def _archive_stale_weak_points(profile: dict):
+    """Archive weak points not seen recently — keeps them in profile but out of active prompts.
+
+    Rules:
+    - last_seen > 60 days → archive regardless
+    - last_seen > 30 days AND times_seen <= 2 → archive
+    - Already improved/archived → skip
+    """
+    now = datetime.now()
+    for wp in profile.get("weak_points", []):
+        if wp.get("improved") or wp.get("archived"):
+            continue
+        last_seen_str = wp.get("last_seen", "")
+        if not last_seen_str:
+            continue
+        try:
+            last_seen = datetime.fromisoformat(last_seen_str)
+        except (ValueError, TypeError):
+            continue
+        days_since = (now - last_seen).days
+        times_seen = wp.get("times_seen", 1)
+        if days_since > 60 or (days_since > 30 and times_seen <= 2):
+            wp["archived"] = True
+            wp["archived_at"] = now.isoformat()
+            wp.setdefault("history", []).append({
+                "date": now.isoformat(),
+                "event": "archived",
+                "reason": f"stale: {days_since}d since last seen, seen {times_seen}x",
+            })
+
+
 def _update_stats(
     profile: dict, mode: str, topic: str | None, avg_score: float | None,
     now: str, answer_count: int = 0, dimension_scores: dict | None = None,
@@ -542,6 +594,10 @@ def _update_stats(
         stats["drill_sessions"] = stats.get("drill_sessions", 0) + 1
     elif mode == "jd_prep":
         stats["job_prep_sessions"] = stats.get("job_prep_sessions", 0) + 1
+    elif mode == "recording":
+        stats["recording_sessions"] = stats.get("recording_sessions", 0) + 1
+    elif mode == "copilot":
+        stats["copilot_sessions"] = stats.get("copilot_sessions", 0) + 1
 
     if answer_count:
         stats["total_answers"] = stats.get("total_answers", 0) + answer_count
@@ -644,6 +700,7 @@ async def llm_update_profile(
     _update_communication(profile, communication)
     _update_thinking_patterns(profile, thinking_patterns)
     _update_stats(profile, mode, topic, avg_score, now, answer_count, dimension_scores)
+    _archive_stale_weak_points(profile)
 
     _save_profile(profile, user_id)
     _save_insight(mode=mode, topic=topic, summary=session_summary, raw_extraction={

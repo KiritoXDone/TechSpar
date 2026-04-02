@@ -228,8 +228,10 @@ def _analyze_recording_background(session_id: str, req_transcript: str, req_reco
             RECORDING_STRUCTURE_PROMPT, RECORDING_DUAL_EVAL_PROMPT, RECORDING_SOLO_EVAL_PROMPT,
         )
         from langchain_core.messages import SystemMessage
+        from backend.memory import get_profile_summary
 
         llm = get_langchain_llm()
+        profile_summary = get_profile_summary(user_id)
 
         if req_recording_mode == "dual":
             # Structure transcript into Q&A
@@ -251,7 +253,9 @@ def _analyze_recording_background(session_id: str, req_transcript: str, req_reco
             # Evaluate
             qa_lines = [f"### Q{q['id']} ({q.get('focus_area', '')})\n**题目**: {q['question']}\n**回答**: {a['answer']}"
                         for q, a in zip(questions, answers)]
-            eval_prompt = RECORDING_DUAL_EVAL_PROMPT.format(qa_pairs="\n\n".join(qa_lines))
+            eval_prompt = RECORDING_DUAL_EVAL_PROMPT.format(
+                qa_pairs="\n\n".join(qa_lines), profile_summary=profile_summary,
+            )
             eval_response = llm.invoke([
                 SystemMessage(content="你是面试评估引擎。只返回 JSON，不要其他内容。"),
                 HumanMessage(content=eval_prompt),
@@ -267,7 +271,9 @@ def _analyze_recording_background(session_id: str, req_transcript: str, req_reco
             save_review(session_id, review, scores, overall.get("new_weak_points", []), overall, user_id=user_id)
         else:
             # Solo mode
-            eval_prompt = RECORDING_SOLO_EVAL_PROMPT.format(transcript=req_transcript)
+            eval_prompt = RECORDING_SOLO_EVAL_PROMPT.format(
+                transcript=req_transcript, profile_summary=profile_summary,
+            )
             response = llm.invoke([
                 SystemMessage(content="你是录音评估引擎。只返回 JSON，不要其他内容。"),
                 HumanMessage(content=eval_prompt),
@@ -330,6 +336,32 @@ async def _update_recording_profile(overall: dict, scores: list, total_items: in
         session_summary=overall.get("summary", ""),
         avg_score=overall.get("avg_score"),
         answer_count=len(valid),
+    )
+
+
+async def _update_copilot_profile(fit_report: dict, position: str, user_id: str):
+    """Write high-risk gaps from copilot fit analysis back to profile as predicted weak points."""
+    if not isinstance(fit_report, dict):
+        return
+    gaps = fit_report.get("gaps", [])
+    high_risk_gaps = [g for g in gaps if isinstance(g, dict) and g.get("risk") == "high"]
+    if not high_risk_gaps:
+        return
+
+    new_weak_points = [
+        {"point": g["point"], "topic": position or "综合", "source": "predicted"}
+        for g in high_risk_gaps if g.get("point")
+    ]
+
+    await llm_update_profile(
+        mode="copilot",
+        topic=position or None,
+        new_weak_points=new_weak_points,
+        new_strong_points=[],
+        topic_mastery={},
+        communication={},
+        user_id=user_id,
+        session_summary=f"Copilot JD分析: {position}",
     )
 
 
@@ -1476,6 +1508,11 @@ async def start_copilot_prep(
                 on_progress=on_progress,
             )
             prep_store.set_done(prep_id, result)
+            # Write high-risk gaps back to profile
+            try:
+                await _update_copilot_profile(result.get("fit_report", {}), position, user_id)
+            except Exception as exc:
+                logger.warning(f"Copilot profile write-back failed: {exc}")
         except Exception as e:
             logger.error(f"Copilot prep failed: {e}", exc_info=True)
             prep_store.set_error(prep_id, str(e))
