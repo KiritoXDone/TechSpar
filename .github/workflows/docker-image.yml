@@ -1,4 +1,4 @@
-name: Build Docker Images
+name: Build All-in-One Docker Image
 
 on:
   workflow_dispatch:
@@ -16,17 +16,6 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - name: backend
-            context: .
-            dockerfile: backend/Dockerfile
-            image: techspar-backend
-          - name: frontend
-            context: ./frontend
-            dockerfile: frontend/Dockerfile
-            image: techspar-frontend
 
     steps:
       - name: Checkout
@@ -51,7 +40,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ steps.owner.outputs.value }}/${{ matrix.image }}
+          images: ghcr.io/${{ steps.owner.outputs.value }}/techspar
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -61,8 +50,8 @@ jobs:
       - name: Build and (optionally) push
         uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.context }}
-          file: ${{ matrix.dockerfile }}
+          context: .
+          file: docker/Dockerfile.all-in-one
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
