@@ -23,13 +23,17 @@ nginx -g "daemon off;" &
 NGINX_PID=$!
 
 cleanup() {
-  kill -TERM "${UVICORN_PID:-}" 2>/dev/null || true
-  kill -TERM "${NGINX_PID:-}" 2>/dev/null || true
-  wait "${UVICORN_PID:-}" 2>/dev/null || true
-  wait "${NGINX_PID:-}" 2>/dev/null || true
+  if [ -n "${UVICORN_PID:-}" ]; then
+    kill -TERM "${UVICORN_PID}" 2>/dev/null || true
+    wait "${UVICORN_PID}" 2>/dev/null || true
+  fi
+  if [ -n "${NGINX_PID:-}" ]; then
+    kill -TERM "${NGINX_PID}" 2>/dev/null || true
+    wait "${NGINX_PID}" 2>/dev/null || true
+  fi
 }
 
 trap cleanup TERM INT
 
-wait -n "${UVICORN_PID}" "${NGINX_PID}"
+wait -n ${UVICORN_PID} ${NGINX_PID}
 cleanup
