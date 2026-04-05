@@ -8,7 +8,7 @@ BACKEND_PORT=8000
 
 mkdir -p "${DATA_DIR:-/opt/TechSpar/data}" /var/log/nginx /var/lib/nginx /run/nginx
 
-python3 -m uvicorn backend.main:app --host 0.0.0.0 --port "${BACKEND_PORT}" &
+python3 -m uvicorn backend.main:app --host 0.0.0.0 --port "${BACKEND_PORT}" --log-level info &
 UVICORN_PID=$!
 
 nginx -g "daemon off;" &
@@ -23,5 +23,5 @@ cleanup() {
 
 trap cleanup TERM INT
 
-wait -n "${UVICORN_PID}" "${NGINX_PID}"
+wait
 cleanup
