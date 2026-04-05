@@ -8,7 +8,7 @@ BACKEND_PORT=8000
 APP_DATA_DIR="${DATA_DIR:-/opt/TechSpar/data}"
 MOUNT_DATA_DIR="${MOUNT_DATA_DIR:-/data}"
 
-if [ -d "${MOUNT_DATA_DIR}" ] && [ "${MOUNT_DATA_DIR}" != "${APP_DATA_DIR}" ]; then
+if [ -n "${MOUNT_DATA_DIR}" ] && [ "${MOUNT_DATA_DIR}" != "${APP_DATA_DIR}" ]; then
   mkdir -p "${MOUNT_DATA_DIR}"
   rm -rf "${APP_DATA_DIR}"
   ln -s "${MOUNT_DATA_DIR}" "${APP_DATA_DIR}"
@@ -31,5 +31,5 @@ cleanup() {
 
 trap cleanup TERM INT
 
-wait
+wait -n "${UVICORN_PID}" "${NGINX_PID}"
 cleanup
