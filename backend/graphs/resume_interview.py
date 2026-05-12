@@ -31,6 +31,22 @@ PHASE_ORDER = [
 HARD_MAX_PER_PHASE = 10
 
 _EVAL_PATTERN = re.compile(r"<!--EVAL:(.*?)-->", re.DOTALL)
+_NO_MORE_QUESTIONS_PATTERNS = (
+    re.compile(
+        r"^\s*(没(有)?|无)(其他|别的|什么)?问题(了|啦|哈|吧)?"
+        r"([，,。.!！\s]*(谢谢|辛苦了))?[。.!！\s]*$",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^\s*(不用了|不问了|先这样|就这些|没有了)"
+        r"([，,。.!！\s]*(谢谢|辛苦了))?[。.!！\s]*$",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"^\s*(that's all|no questions?)(,?\s*(thanks|thank you))?[.!?\s]*$",
+        re.IGNORECASE,
+    ),
+)
 
 # Shared AsyncSqliteSaver — single long-lived aiosqlite connection across sessions.
 # State is keyed by thread_id (= session_id), so one DB safely serves all users.
@@ -76,6 +92,24 @@ def _parse_inline_eval(content: str) -> tuple[str, dict | None]:
     except json.JSONDecodeError:
         logger.warning(f"Failed to parse inline eval: {m.group(1)[:100]}")
         return clean, None
+
+
+def _latest_user_message(state: ResumeInterviewState) -> str:
+    for msg in reversed(state.get("messages", [])):
+        if isinstance(msg, HumanMessage):
+            return msg.content
+    return ""
+
+
+def _candidate_has_no_more_questions(text: str) -> bool:
+    text = text.strip()
+    return any(pattern.search(text) for pattern in _NO_MORE_QUESTIONS_PATTERNS)
+
+
+def _should_finish_reverse_qa_after_reply(state: ResumeInterviewState, current_count: int) -> bool:
+    if state.get("phase") != InterviewPhase.REVERSE_QA.value:
+        return False
+    return current_count > 0 and _candidate_has_no_more_questions(_latest_user_message(state))
 
 
 def _make_init_interview(user_id: str):
@@ -139,12 +173,16 @@ def _make_interviewer_ask(user_id: str):
         # Parse and strip inline eval from response
         clean_content, eval_data = _parse_inline_eval(response.content)
         count = state.get("phase_question_count", 0)
+        next_count = count + 1
 
         result = {
             "messages": [AIMessage(content=clean_content)],
             "questions_asked": asked + [clean_content[:100]],
-            "phase_question_count": count + 1,
+            "phase_question_count": next_count,
         }
+
+        if _should_finish_reverse_qa_after_reply(state, count):
+            result["is_finished"] = True
 
         if eval_data:
             eval_data["phase"] = state.get("phase", "")
@@ -179,9 +217,6 @@ def route_after_answer(state: ResumeInterviewState) -> str:
         return "advance"
     if phase == "self_intro" and count >= 2:
         return "advance"
-    if phase == "reverse_qa" and count >= 2:
-        return "end"
-
     # Technical / project_deep_dive: eval-driven with count fallback
     if phase in ("technical", "project_deep_dive"):
         # Need at least 2 questions before considering advancement

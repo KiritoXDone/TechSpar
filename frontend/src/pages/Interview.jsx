@@ -511,7 +511,9 @@ export default function Interview() {
           const task = tasks.find((t) => t.id === sessionId);
           const taskDone = task?.status === "done" || sessionStatus === "reviewed";
           const taskError = task?.status === "error" || sessionStatus === "review_failed";
-          // Four branches: live chat → end, review failed → retry, review in-flight → wait, review done → view.
+          const taskPending = task?.status === "pending" || sessionStatus === "reviewing";
+          // Four branches: review done → view, failed → retry, in-flight → wait,
+          // otherwise the user may end the chat and start review generation.
           let handler;
           let label;
           if (taskDone) {
@@ -520,12 +522,12 @@ export default function Interview() {
           } else if (taskError) {
             handler = handleRetryResumeReview;
             label = reviewing ? "重新生成中..." : "重新生成复盘";
-          } else if (!finished) {
-            handler = handleEndResume;
-            label = reviewing ? "生成复盘中..." : "结束面试";
-          } else {
+          } else if (taskPending) {
             handler = undefined;
             label = "复盘生成中...";
+          } else {
+            handler = handleEndResume;
+            label = reviewing ? "生成复盘中..." : finished ? "生成复盘" : "结束面试";
           }
           return (
             <Button
